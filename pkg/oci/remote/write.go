@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -171,6 +172,7 @@ func WriteSignaturesExperimentalOCI(d name.Digest, se oci.SignedEntity, opts ...
 	if err != nil {
 		return err
 	}
+	log.Printf("############### configBytes: %s\n", string(configBytes))
 	var configDesc v1.Descriptor
 	if err := json.Unmarshal(configBytes, &configDesc); err != nil {
 		return err
@@ -185,18 +187,33 @@ func WriteSignaturesExperimentalOCI(d name.Digest, se oci.SignedEntity, opts ...
 	if err != nil {
 		return err
 	}
+	log.Printf("############### sigs.RawManifest: %s\n", string(b))
 	var m v1.Manifest
 	if err := json.Unmarshal(b, &m); err != nil {
 		return err
 	}
 
-	artifactType := ociexperimental.ArtifactType("sig")
-	m.Config.MediaType = types.MediaType(artifactType)
+	// empty descriptor should be used for OCI artifact
+	//m.Config.MediaType = types.MediaType(artifactType)
+	ed, _ := v1.NewHash(`sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a`)
+	m.Config = v1.Descriptor{
+		MediaType: types.MediaType("application/vnd.oci.empty.v1+json"),
+		Digest:    ed,
+		Size:      2,
+		Data:      []byte(`{}`),
+	}
+
 	m.Subject = desc
-	b, err = json.Marshal(&m)
+
+	// sets artifactType
+	artifactType := ociexperimental.ArtifactType("sig")
+	am := referrerManifest{m, artifactType}
+
+	b, err = json.Marshal(&am)
 	if err != nil {
 		return err
 	}
+	log.Printf("############### manifest: %s\n", string(b))
 	digest, _, err := v1.SHA256(bytes.NewReader(b))
 	if err != nil {
 		return err
