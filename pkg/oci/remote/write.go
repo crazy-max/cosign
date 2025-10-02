@@ -171,6 +171,7 @@ func WriteSignaturesExperimentalOCI(d name.Digest, se oci.SignedEntity, opts ...
 	if err != nil {
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "######################## configBytes: %s\n", string(configBytes))
 	var configDesc v1.Descriptor
 	if err := json.Unmarshal(configBytes, &configDesc); err != nil {
 		return err
@@ -185,6 +186,7 @@ func WriteSignaturesExperimentalOCI(d name.Digest, se oci.SignedEntity, opts ...
 	if err != nil {
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "######################## sigs.RawManifest: %s\n", string(b))
 	var m v1.Manifest
 	if err := json.Unmarshal(b, &m); err != nil {
 		return err
@@ -197,6 +199,7 @@ func WriteSignaturesExperimentalOCI(d name.Digest, se oci.SignedEntity, opts ...
 	if err != nil {
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "######################## manifest: %s\n", string(b))
 	digest, _, err := v1.SHA256(bytes.NewReader(b))
 	if err != nil {
 		return err
