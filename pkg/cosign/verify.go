@@ -43,6 +43,7 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/nozzle/throttler"
+	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 	ssldsse "github.com/secure-systems-lab/go-securesystemslib/dsse"
 	"github.com/sigstore/cosign/v3/internal/pkg/cosign"
 	ociexperimental "github.com/sigstore/cosign/v3/internal/pkg/oci/remote"
@@ -1582,16 +1583,25 @@ func verifyImageSignaturesExperimentalOCI(ctx context.Context, signedImgRef name
 	var sigs oci.Signatures
 	sigRef := co.SignatureRef
 	if sigRef == "" {
-		artifactType := ociexperimental.ArtifactType("sig")
-		index, err := ociremote.Referrers(digest, artifactType, co.RegistryClientOpts...)
+		index, artifactType, err := func(digest name.Digest) (*v1.IndexManifest, string, error) {
+			ats := []string{ocispecs.MediaTypeEmptyJSON, ociexperimental.ArtifactType("sig")}
+			for _, at := range ats {
+				index, err := ociremote.Referrers(digest, at, co.RegistryClientOpts...)
+				if err != nil {
+					return nil, at, err
+				}
+				if len(index.Manifests) > 0 {
+					return index, at, nil
+				}
+			}
+			return nil, "", fmt.Errorf("unable to locate reference with artifactType %+v", ats)
+		}(digest)
 		if err != nil {
 			return nil, false, err
 		}
 		results := index.Manifests
 		numResults := len(results)
-		if numResults == 0 {
-			return nil, false, fmt.Errorf("unable to locate reference with artifactType %s", artifactType)
-		} else if numResults > 1 {
+		if numResults > 1 {
 			// TODO: if there is more than 1 result.. what does that even mean?
 			ui.Warnf(ctx, "there were a total of %d references with artifactType %s\n", numResults, artifactType)
 		}

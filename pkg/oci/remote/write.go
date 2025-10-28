@@ -27,6 +27,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/google/go-containerregistry/pkg/v1/types"
+	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 	ociexperimental "github.com/sigstore/cosign/v3/internal/pkg/oci/remote"
 	"github.com/sigstore/cosign/v3/pkg/oci"
 	ctypes "github.com/sigstore/cosign/v3/pkg/types"
@@ -190,10 +191,22 @@ func WriteSignaturesExperimentalOCI(d name.Digest, se oci.SignedEntity, opts ...
 		return err
 	}
 
-	artifactType := ociexperimental.ArtifactType("sig")
-	m.Config.MediaType = types.MediaType(artifactType)
+	// use an empty descriptor for OCI artifact
+	// https://github.com/opencontainers/image-spec/blob/v1.1.0/manifest.md#guidance-for-an-empty-descriptor
+	// https://github.com/opencontainers/image-spec/blob/6519a62d628ec31b5da156de745b516d8850c8e3/specs-go/v1/descriptor.go#L74-L80
+	ed, _ := v1.NewHash(`sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a`)
+	m.Config = v1.Descriptor{
+		MediaType: ocispecs.MediaTypeEmptyJSON,
+		Digest:    ed,
+		Size:      2,
+		Data:      []byte(`{}`),
+	}
 	m.Subject = desc
-	b, err = json.Marshal(&m)
+
+	artifactType := ociexperimental.ArtifactType("sig")
+	am := referrerManifest{m, artifactType}
+
+	b, err = json.Marshal(&am)
 	if err != nil {
 		return err
 	}
